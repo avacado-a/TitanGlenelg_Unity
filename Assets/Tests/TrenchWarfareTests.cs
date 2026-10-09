@@ -76,5 +76,41 @@ namespace TitanGlenelg.Tests
             // Fatigued OL should yield a higher Delta M (more advantage to defense)
             Assert.Greater(deltaFatigued, deltaFresh, "Fatigued OL must yield greater leverage to pass rusher");
         }
+
+        [Test]
+        public void Test_PancakeThreshold_DominantDLOverpowersAndPancakes()
+        {
+            var monsterDL = new LinemanPhysicalAttributes
+            {
+                StrengthRating = 99f,
+                PowerLeverage = 99f,
+                StaminaEfficiency = 1.0f,
+                IsOffensiveLineman = false
+            };
+
+            // Evaluate at peak leverage
+            float deltaM = TrenchWarfareSystem.CalculateLeverageDelta(in monsterDL, 0.1f);
+            Assert.Greater(deltaM, TrenchWarfareSystem.ShedThreshold, "Monster DL must surpass shed threshold");
+            Assert.AreEqual(26.0f, TrenchWarfareSystem.PancakeThreshold, "Pancake threshold must be achievable at 26.0f");
+        }
+
+        [Test]
+        public void Test_PullingGuard_WaypointArrivalTransitionsToBlock()
+        {
+            var lockup = new TrenchLockupData { State = TrenchEngagementState.Unengaged };
+            var attr = new LinemanPhysicalAttributes
+            {
+                IsPullingAssignment = true,
+                PullWaypoint = new float3(4.5f, 0f, 1.2f)
+            };
+            var loco = new KinematicLocomotionData { MaxSprintSpeedMps = 7.0f };
+            var transform = new Unity.Transforms.LocalTransform { Position = new float3(4.4f, 0f, 1.15f) }; // Within 0.3m
+
+            var job = new EvaluateTrenchWarfareJob { DeltaTime = 0.016f, CheckInterval = 0.4f };
+            job.Execute(new Unity.Entities.Entity(), ref lockup, ref attr, ref loco, ref transform);
+
+            Assert.IsFalse(attr.IsPullingAssignment, "Pulling assignment must finish upon arrival at waypoint");
+            Assert.AreEqual(TrenchEngagementState.LockedInTrench, lockup.State, "Pulling lineman must engage in block upon arrival");
+        }
     }
 }

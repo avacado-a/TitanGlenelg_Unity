@@ -20,6 +20,16 @@ namespace TitanGlenelg.Core.AI
         public const float WhistleDownVelocityThreshold = 0.35f;
 
         [BurstCompile]
+        public void OnCreate(ref SystemState state)
+        {
+        }
+
+        [BurstCompile]
+        public void OnDestroy(ref SystemState state)
+        {
+        }
+
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             float dt = SystemAPI.Time.DeltaTime;
@@ -28,7 +38,7 @@ namespace TitanGlenelg.Core.AI
             {
                 DeltaTime = dt
             };
-            job.ScheduleParallel();
+            state.Dependency = job.ScheduleParallel(state.Dependency);
         }
     }
 
@@ -69,7 +79,7 @@ namespace TitanGlenelg.Core.AI
 
                     // If forward motion halted and time elapsed -> down by contact / whistle blow
                     if (tackle.ContactTime >= ActiveRagdollTackleSystem.TackleContactDuration ||
-                        math.length(locomotion.CurrentVelocity) < ActiveRagdollTackleSystem.WhistleDownVelocityThreshold)
+                        (tackle.ContactTime >= 0.15f && math.length(locomotion.CurrentVelocity) < ActiveRagdollTackleSystem.WhistleDownVelocityThreshold))
                     {
                         tackle.State = TackleState.WhistleDown;
                         locomotion.CurrentVelocity = float3.zero;

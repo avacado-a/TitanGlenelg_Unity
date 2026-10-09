@@ -24,13 +24,37 @@ namespace TitanGlenelg.Core.Physics
         }
 
         [BurstCompile]
+        public void OnDestroy(ref SystemState state)
+        {
+        }
+
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             var job = new EvaluateCatchTriadJob
             {
                 DeltaTime = SystemAPI.Time.DeltaTime
             };
-            job.ScheduleParallel();
+            state.Dependency = job.ScheduleParallel(state.Dependency);
+        }
+
+        [BurstCompile]
+        public static void ApplyCatchOutcome(
+            ref CatchTargetData catchTarget,
+            ref AI.PlayerFSMState fsmState,
+            ref AI.KinematicLocomotionData locomotion)
+        {
+            EvaluateCatchTriadJob.ApplyCatchOutcome(ref catchTarget, ref fsmState, ref locomotion);
+        }
+
+        [BurstCompile]
+        public static bool EvaluateContestedKnockout(
+            UserCatchMode catchMode,
+            float receiverCatchRating,
+            float defenderImpactForce,
+            float randomSeed)
+        {
+            return EvaluateCatchTriadJob.EvaluateContestedKnockout(catchMode, receiverCatchRating, defenderImpactForce, randomSeed);
         }
     }
 
@@ -73,7 +97,7 @@ namespace TitanGlenelg.Core.Physics
                 case UserCatchMode.Aggressive:
                     // High-pointing jump: elevates catch radius vertically by +0.75m
                     verticalCatchBonus = 0.75f;
-                    effectiveCatchRadius += 0.35f;
+                    effectiveCatchRadius += 0.35f + verticalCatchBonus;
                     break;
 
                 case UserCatchMode.Possession:

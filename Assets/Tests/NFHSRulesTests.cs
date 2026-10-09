@@ -96,5 +96,43 @@ namespace TitanGlenelg.Tests
             Assert.AreEqual(10.0f, _rulesEngine.LineOfScrimmageYard, "Kansas Plan overtime must start at the opponent's 10-yard line");
             Assert.IsFalse(_rulesEngine.IsGameClockRunning, "Kansas Plan overtime is untimed; game clock must not run");
         }
+
+        [Test]
+        public void Test_HalfDistanceToGoalPenalty_CappedAtHalfDistance()
+        {
+            // Ball at own 4-yard line; 10-yard penalty on offense
+            _rulesEngine.LineOfScrimmageYard = 4.0f;
+            _rulesEngine.DistanceToGainYards = 10.0f;
+
+            _rulesEngine.EnforcePenalty("Holding", 10.0f, againstOffense: true, autoFirstDown: false);
+
+            Assert.AreEqual(2.0f, _rulesEngine.LineOfScrimmageYard, "Penalty inside 10-yard line must be capped at half the distance to goal (4 -> 2)");
+            Assert.AreEqual(12.0f, _rulesEngine.DistanceToGainYards, "Distance to gain must increase by 2 yards");
+        }
+
+        [Test]
+        public void Test_KansasPlanOvertime_AlternatesPossessionAcrossRounds()
+        {
+            _rulesEngine.InitializeKansasPlanOvertime();
+            Assert.AreEqual(TeamSide.HomeGlenelg, _rulesEngine.PossessionTeam, "Round 1 begins with Glenelg possession");
+
+            // Glenelg finishes drive; Titans get possession
+            _rulesEngine.ProcessKansasOvertimeConclusion();
+            Assert.AreEqual(TeamSide.AwayTitans, _rulesEngine.PossessionTeam, "Round 1 second turn is Titans");
+
+            // Both tied -> advance to Round 2
+            _rulesEngine.ProcessKansasOvertimeConclusion();
+            Assert.AreEqual(2, _rulesEngine.OvertimeRound, "Should advance to Round 2");
+            Assert.AreEqual(TeamSide.AwayTitans, _rulesEngine.PossessionTeam, "Round 2 alternates to Titans first");
+
+            // Titans finish drive; Glenelg second turn
+            _rulesEngine.ProcessKansasOvertimeConclusion();
+            Assert.AreEqual(TeamSide.HomeGlenelg, _rulesEngine.PossessionTeam, "Round 2 second turn is Glenelg");
+
+            // Still tied -> advance to Round 3
+            _rulesEngine.ProcessKansasOvertimeConclusion();
+            Assert.AreEqual(3, _rulesEngine.OvertimeRound, "Should advance to Round 3");
+            Assert.AreEqual(TeamSide.HomeGlenelg, _rulesEngine.PossessionTeam, "Round 3 alternates back to Glenelg first");
+        }
     }
 }

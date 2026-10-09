@@ -74,7 +74,7 @@ namespace TitanGlenelg.Core.Simulation
                 {
                     PlayClockRemaining = 0f;
                     IsPlayClockRunning = false;
-                    EnforcePenalty("Delay of Game", 5.0f, false, false);
+                    EnforcePenalty("Delay of Game", 5.0f, true, false);
                 }
             }
 
@@ -229,11 +229,22 @@ namespace TitanGlenelg.Core.Simulation
 
             if (againstOffense)
             {
+                // NFHS Rule 10-4-3: Penalty cannot exceed half the distance to the goal line
+                if (LineOfScrimmageYard <= penaltyYards * 2.0f)
+                {
+                    penaltyYards = LineOfScrimmageYard * 0.5f;
+                }
                 LineOfScrimmageYard = Mathf.Max(1.0f, LineOfScrimmageYard - penaltyYards);
                 DistanceToGainYards += penaltyYards;
             }
             else
             {
+                // NFHS Rule 10-4-3: Half distance toward opponent goal line
+                float distToGoal = 100.0f - LineOfScrimmageYard;
+                if (distToGoal <= penaltyYards * 2.0f)
+                {
+                    penaltyYards = distToGoal * 0.5f;
+                }
                 LineOfScrimmageYard = Mathf.Min(99.0f, LineOfScrimmageYard + penaltyYards);
                 DistanceToGainYards -= penaltyYards;
 
@@ -321,13 +332,13 @@ namespace TitanGlenelg.Core.Simulation
         {
             if (OvertimePossessionIndex == 0)
             {
-                // Team A finished drive; now Team B gets possession from the 10-yard line
+                // First team finished drive; now second team gets possession from the 10-yard line
                 OvertimePossessionIndex = 1;
-                PossessionTeam = TeamSide.AwayTitans;
+                PossessionTeam = (PossessionTeam == TeamSide.HomeGlenelg) ? TeamSide.AwayTitans : TeamSide.HomeGlenelg;
                 LineOfScrimmageYard = KansasOvertimeStartingYard;
                 DistanceToGainYards = 10.0f;
                 CurrentDown = DownState.First;
-                OnRefereeAnnouncement?.Invoke("Kansas Overtime: Titans take possession at the 10-yard line.");
+                OnRefereeAnnouncement?.Invoke($"Kansas Overtime: {PossessionTeam} takes possession at the 10-yard line.");
             }
             else
             {
@@ -343,7 +354,7 @@ namespace TitanGlenelg.Core.Simulation
                     // Still tied: advance to next Kansas Overtime Round
                     OvertimeRound++;
                     OvertimePossessionIndex = 0;
-                    PossessionTeam = TeamSide.AwayTitans; // Alternate first possession
+                    PossessionTeam = (OvertimeRound % 2 == 1) ? TeamSide.HomeGlenelg : TeamSide.AwayTitans; // Alternate first possession
                     LineOfScrimmageYard = KansasOvertimeStartingYard;
                     DistanceToGainYards = 10.0f;
                     CurrentDown = DownState.First;

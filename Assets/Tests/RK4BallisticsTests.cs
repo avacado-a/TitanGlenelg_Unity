@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using Unity.Mathematics;
+using Unity.Physics;
 using TitanGlenelg.Core.Physics;
 
 namespace TitanGlenelg.Tests
@@ -91,6 +92,53 @@ namespace TitanGlenelg.Tests
 
             // Drag decelerates forward Z velocity. Wobbling ball has greater cross-section, thus greater drag deceleration.
             Assert.Less(accWobble.z, accNoseOn.z, "Wobbling ball must experience greater drag deceleration than clean spiral");
+        }
+
+        [Test]
+        public void Test_ElevationTilt_AdjustsLaunchAngle()
+        {
+            float3 origin = new float3(0f, 2f, 0f);
+            float3 flatTarget = new float3(0f, 2f, 20f);
+            float3 highTarget = new float3(0f, 6f, 20f); // 4 meters higher
+
+            PassingTrajectoryCalculator.CalculateThrowTrajectory(
+                origin, flatTarget, float3.zero, ThrowType.Bullet, 1.0f,
+                out float3 vFlat, out _, out _, out _, out _);
+
+            PassingTrajectoryCalculator.CalculateThrowTrajectory(
+                origin, highTarget, float3.zero, ThrowType.Bullet, 1.0f,
+                out float3 vHigh, out _, out _, out _, out _);
+
+            Assert.Greater(vHigh.y, vFlat.y, "Higher target elevation must produce greater vertical launch velocity");
+        }
+
+        [Test]
+        public void Test_TurfContact_ClampsGroundPositionAndSignalsHavok()
+        {
+            var aero = new ProlateSpheroidAerodynamics { MassKg = 0.425f, AirDensityKgM3 = 1.225f };
+            var ballistics = new BallisticsState
+            {
+                Phase = BallFlightPhase.InFlightAerodynamic,
+                Velocity = new float3(0f, -5f, 10f),
+                SpinAxis = new float3(0f, 0f, 1f),
+                SpinRateRadS = 50f
+            };
+            var physVel = new PhysicsVelocity();
+            var transform = new Unity.Transforms.LocalTransform { Position = new float3(0f, 0.05f, 15f) }; // Below 0.11m
+            var contact = new HavokContactData { HasCollided = false };
+
+            var job = new RK4BallisticsJob
+            {
+                SubSteps = 1,
+                SubStepDeltaTime = 1f / 120f,
+                GravityAcc = new float3(0f, -9.8f, 0f)
+            };
+
+            job.Execute(new Unity.Entities.Entity(), ref ballistics, in aero, ref physVel, ref transform, ref contact);
+
+            Assert.IsTrue(contact.HasCollided, "Turf contact must be detected when below 0.11m");
+            Assert.AreEqual(BallFlightPhase.HavokRigidBodyContact, ballistics.Phase, "Ball phase must switch to Havok contact");
+            Assert.AreEqual(0.11f, transform.Position.y, 0.001f, "Ball height must be clamped to turf elevation (0.11m)");
         }
     }
 }

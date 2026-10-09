@@ -29,29 +29,34 @@ namespace TitanGlenelg.Core.Physics
         }
 
         [BurstCompile]
+        public void OnDestroy(ref SystemState state)
+        {
+        }
+
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             float dt = SystemAPI.Time.DeltaTime;
             // Use sub-stepping to guarantee 120Hz or higher precision
-            int steps = math.max(1, (int)math.round(dt / FixedDeltaTime120Hz));
+            int steps = math.clamp((int)math.round(dt / FixedDeltaTime120Hz), 1, 8);
             float stepDt = dt / steps;
 
-            for (int i = 0; i < steps; i++)
+            var job = new RK4BallisticsJob
             {
-                var job = new RK4BallisticsJob
-                {
-                    DeltaTime = stepDt,
-                    GravityAcc = Gravity
-                };
-                job.ScheduleParallel();
-            }
+                SubSteps = steps,
+                SubStepDeltaTime = stepDt,
+                GravityAcc = Gravity
+            };
+            state.Dependency = job.ScheduleParallel(state.Dependency);
         }
     }
 
     [BurstCompile]
     public partial struct RK4BallisticsJob : IJobEntity
     {
+        public int SubSteps;
         public float DeltaTime;
+        public float SubStepDeltaTime;
         public float3 GravityAcc;
 
         public void Execute(
@@ -62,86 +67,92 @@ namespace TitanGlenelg.Core.Physics
             ref LocalTransform transform,
             ref HavokContactData contactData)
         {
-            // Only simulate aerodynamics when ball is actively in flight
-            if (ballistics.Phase != BallFlightPhase.InFlightAerodynamic)
+            for (int step = 0; step < SubSteps; step++)
             {
-                return;
-            }
-
-            // Check if Havok contact has been flagged by collision event
-            if (contactData.HasCollided)
-            {
-                ballistics.Phase = BallFlightPhase.HavokRigidBodyContact;
-                return;
-            }
-
-            // Turf contact check (ground height = 0.11m ball radius)
-            if (transform.Position.y <= 0.11f && ballistics.Velocity.y <= 0f)
-            {
-                ballistics.Phase = BallFlightPhase.HavokRigidBodyContact;
-                contactData.HasCollided = true;
-                contactData.ContactPoint = new float3(transform.Position.x, 0.11f, transform.Position.z);
-                contactData.ContactNormal = new float3(0f, 1f, 0f);
-                return;
-            }
-
-            // Update flight time and gyroscopic wobble decay
-            ballistics.FlightTime += DeltaTime;
-            ballistics.WobbleAngleRad *= math.exp(-ballistics.WobbleDecayRate * DeltaTime);
-
-            // Execute 4th-Order Runge-Kutta numerical integration
-            float3 x0 = transform.Position;
-            float3 v0 = ballistics.Velocity;
-            float3 spin = ballistics.SpinAxis;
-            float spinRate = ballistics.SpinRateRadS;
-            float wobble = ballistics.WobbleAngleRad;
-
-            // k1
-            float3 k1_x = v0;
-            float3 k1_v = ComputeAcceleration(v0, spin, spinRate, wobble, in aero);
-
-            // k2
-            float3 v_half1 = v0 + 0.5f * DeltaTime * k1_v;
-            float3 k2_x = v_half1;
-            float3 k2_v = ComputeAcceleration(v_half1, spin, spinRate, wobble, in aero);
-
-            // k3
-            float3 v_half2 = v0 + 0.5f * DeltaTime * k2_v;
-            float3 k3_x = v_half2;
-            float3 k3_v = ComputeAcceleration(v_half2, spin, spinRate, wobble, in aero);
-
-            // k4
-            float3 v_full = v0 + DeltaTime * k3_v;
-            float3 k4_x = v_full;
-            float3 k4_v = ComputeAcceleration(v_full, spin, spinRate, wobble, in aero);
-
-            // Integrate state
-            float3 nextPos = x0 + (DeltaTime / 6.0f) * (k1_x + 2.0f * k2_x + 2.0f * k3_x + k4_x);
-            float3 nextVel = v0 + (DeltaTime / 6.0f) * (k1_v + 2.0f * k2_v + 2.0f * k3_v + k4_v);
-
-            // Update internal state
-            ballistics.Position = nextPos;
-            ballistics.Velocity = nextVel;
-
-            // Align ball orientation with flight tangent and spin axis
-            if (math.lengthsq(nextVel) > 0.01f)
-            {
-                float3 flightDir = math.normalize(nextVel);
-                // Apply wobble nutation offset
-                float3 wobbleDir = math.cross(flightDir, new float3(0f, 1f, 0f));
-                if (math.lengthsq(wobbleDir) > 0.001f)
+                // Only simulate aerodynamics when ball is actively in flight
+                if (ballistics.Phase != BallFlightPhase.InFlightAerodynamic)
                 {
-                    wobbleDir = math.normalize(wobbleDir);
-                    flightDir = math.normalize(flightDir + wobbleDir * math.sin(wobble));
+                    return;
                 }
-                transform.Rotation = quaternion.LookRotationSafe(flightDir, new float3(0f, 1f, 0f));
+
+                // Check if Havok contact has been flagged by collision event
+                if (contactData.HasCollided)
+                {
+                    ballistics.Phase = BallFlightPhase.HavokRigidBodyContact;
+                    return;
+                }
+
+                // Turf contact check (ground height = 0.11m ball radius)
+                if (transform.Position.y <= 0.11f && ballistics.Velocity.y <= 0f)
+                {
+                    ballistics.Phase = BallFlightPhase.HavokRigidBodyContact;
+                    contactData.HasCollided = true;
+                    contactData.ContactPoint = new float3(transform.Position.x, 0.11f, transform.Position.z);
+                    contactData.ContactNormal = new float3(0f, 1f, 0f);
+                    transform.Position = contactData.ContactPoint;
+                    physVel.Linear = ballistics.Velocity;
+                    physVel.Angular = ballistics.SpinAxis * ballistics.SpinRateRadS;
+                    return;
+                }
+
+                // Update flight time and gyroscopic wobble decay
+                ballistics.FlightTime += SubStepDeltaTime;
+                ballistics.WobbleAngleRad *= math.exp(-ballistics.WobbleDecayRate * SubStepDeltaTime);
+
+                // Execute 4th-Order Runge-Kutta numerical integration
+                float3 x0 = transform.Position;
+                float3 v0 = ballistics.Velocity;
+                float3 spin = ballistics.SpinAxis;
+                float spinRate = ballistics.SpinRateRadS;
+                float wobble = ballistics.WobbleAngleRad;
+
+                // k1
+                float3 k1_x = v0;
+                float3 k1_v = ComputeAcceleration(v0, spin, spinRate, wobble, in aero);
+
+                // k2
+                float3 v_half1 = v0 + 0.5f * SubStepDeltaTime * k1_v;
+                float3 k2_x = v_half1;
+                float3 k2_v = ComputeAcceleration(v_half1, spin, spinRate, wobble, in aero);
+
+                // k3
+                float3 v_half2 = v0 + 0.5f * SubStepDeltaTime * k2_v;
+                float3 k3_x = v_half2;
+                float3 k3_v = ComputeAcceleration(v_half2, spin, spinRate, wobble, in aero);
+
+                // k4
+                float3 v_full = v0 + SubStepDeltaTime * k3_v;
+                float3 k4_x = v_full;
+                float3 k4_v = ComputeAcceleration(v_full, spin, spinRate, wobble, in aero);
+
+                // Integrate state
+                float3 nextPos = x0 + (SubStepDeltaTime / 6.0f) * (k1_x + 2.0f * k2_x + 2.0f * k3_x + k4_x);
+                float3 nextVel = v0 + (SubStepDeltaTime / 6.0f) * (k1_v + 2.0f * k2_v + 2.0f * k3_v + k4_v);
+
+                // Update internal state
+                ballistics.Position = nextPos;
+                ballistics.Velocity = nextVel;
+
+                // Align ball orientation with flight tangent and spin axis
+                if (math.lengthsq(nextVel) > 0.01f)
+                {
+                    float3 flightDir = math.normalize(nextVel);
+                    // Apply wobble nutation offset
+                    float3 wobbleDir = math.cross(flightDir, new float3(0f, 1f, 0f));
+                    if (math.lengthsq(wobbleDir) > 0.001f)
+                    {
+                        wobbleDir = math.normalize(wobbleDir);
+                        flightDir = math.normalize(flightDir + wobbleDir * math.sin(wobble));
+                    }
+                    transform.Rotation = quaternion.LookRotationSafe(flightDir, new float3(0f, 1f, 0f));
+                }
+
+                transform.Position = nextPos;
+
+                // Write to PhysicsVelocity so Havok Physics retains continuous linear momentum
+                physVel.Linear = nextVel;
+                physVel.Angular = ballistics.SpinAxis * ballistics.SpinRateRadS;
             }
-
-            transform.Position = nextPos;
-
-            // Write to PhysicsVelocity so Havok Physics retains continuous linear momentum
-            physVel.Linear = nextVel;
-            physVel.Angular = ballistics.SpinAxis * ballistics.SpinRateRadS;
         }
 
         /// <summary>

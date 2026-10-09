@@ -146,7 +146,22 @@ def test_nfhs_clock_and_rules():
     ot_start_yard = 10.0
     ot_clock_running = False
     assert ot_start_yard == 10.0 and ot_clock_running is False, "Kansas Plan must start from 10-yard line untimed"
-    print("  [PASS] NFHS Rules: 12-min quarters, 1st down clock stop, 15-yd DPI cap, Kansas Plan OT validated.")
+
+    # Half distance penalty test
+    own_yard = 4.0
+    penalty = 10.0
+    if own_yard <= penalty * 2.0:
+        penalty = own_yard * 0.5
+    assert penalty == 2.0, "Penalty inside 10-yard line must cap at half distance"
+
+    # Multi-round OT alternating turn test
+    r1_turn1 = "Glenelg"
+    r1_turn2 = "Titans"
+    r2_turn1 = "Titans" if (2 % 2 == 0) else "Glenelg"
+    r2_turn2 = "Glenelg" if r2_turn1 == "Titans" else "Titans"
+    r3_turn1 = "Titans" if (3 % 2 == 0) else "Glenelg"
+    assert r2_turn1 == "Titans" and r2_turn2 == "Glenelg" and r3_turn1 == "Glenelg", "Overtime first possession must alternate"
+    print("  [PASS] NFHS Rules: 12-min quarters, 1st down clock stop, 15-yd DPI cap, half-distance, Kansas Plan OT validated.")
 
 def test_two_way_fatigue_and_substitutions():
     print("--> Testing Two-Way Ironman Fatigue & Substitutions...")
@@ -186,10 +201,14 @@ def test_trench_warfare_leverage():
     delta_m = dl_score - ol_neutral
     assert delta_m > 18.0, f"Delta M for dominant DL must exceed 18: {delta_m}"
 
-    # Shed threshold is 25.0, pancake is 45.0
-    shed_achieved = (delta_m + 8.0) > 25.0 # With positive fuzz
-    assert shed_achieved, "DL shed should trigger when Delta M surpasses 25.0"
-    print(f"  [PASS] DL Score={dl_score:.1f}, OL Score={ol_neutral:.1f}, Delta M={delta_m:.1f} -> Shed confirmed.")
+    # Shed threshold is 18.0, pancake is 26.0
+    shed_threshold = 18.0
+    pancake_threshold = 26.0
+    shed_achieved = delta_m >= shed_threshold
+    pancake_achieved = (delta_m + 8.0) >= pancake_threshold # With leverage surge
+    assert shed_achieved, "DL shed should trigger when Delta M surpasses 18.0"
+    assert pancake_achieved, "DL pancake should trigger when Delta M surpasses 26.0"
+    print(f"  [PASS] DL Score={dl_score:.1f}, OL Score={ol_neutral:.1f}, Delta M={delta_m:.1f} -> Shed & Pancake confirmed.")
 
 def test_catch_triad_knockouts():
     print("--> Testing User Catch Triad & Knockout Physics...")

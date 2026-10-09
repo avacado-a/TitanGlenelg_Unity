@@ -21,6 +21,7 @@ Shader "TitanGlenelg/FieldLineProjector"
             #pragma target 4.5
 
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SpaceTransforms.hlsl"
 
             struct Attributes
             {

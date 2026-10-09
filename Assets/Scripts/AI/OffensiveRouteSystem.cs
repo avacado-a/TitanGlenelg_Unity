@@ -16,6 +16,16 @@ namespace TitanGlenelg.Core.AI
     public partial struct OffensiveRouteSystem : ISystem
     {
         [BurstCompile]
+        public void OnCreate(ref SystemState state)
+        {
+        }
+
+        [BurstCompile]
+        public void OnDestroy(ref SystemState state)
+        {
+        }
+
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             float dt = SystemAPI.Time.DeltaTime;
@@ -24,7 +34,13 @@ namespace TitanGlenelg.Core.AI
             {
                 DeltaTime = dt
             };
-            job.ScheduleParallel();
+            state.Dependency = job.ScheduleParallel(state.Dependency);
+        }
+
+        [BurstCompile]
+        public static void IntegrateLocomotion(ref KinematicLocomotionData loco, ref LocalTransform transform, float dt)
+        {
+            EvaluateOffensiveRoutesJob.IntegrateLocomotion(ref loco, ref transform, dt);
         }
     }
 
@@ -41,6 +57,12 @@ namespace TitanGlenelg.Core.AI
             ref LocalTransform transform,
             in PlayerIdentity identity)
         {
+            // Linemen are handled by TrenchWarfareSystem; ignore skill route splines
+            if (identity.Position >= PlayerPosition.LT && identity.Position <= PlayerPosition.RT)
+            {
+                return;
+            }
+
             fsm.StateTimeElapsed += DeltaTime;
 
             switch (fsm.OffensePhase)

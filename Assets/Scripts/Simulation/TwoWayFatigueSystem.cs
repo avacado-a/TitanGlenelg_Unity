@@ -22,6 +22,9 @@ namespace TitanGlenelg.Core.Simulation
         public int SnapsPlayed;
         public bool IsSubstitutedOut;
         public float CurrentInjuryRisk;
+        public float CurrentSpeedMultiplier = 1.0f;
+        public float CurrentThrowMultiplier = 1.0f;
+        public float CurrentShedMultiplier = 1.0f;
     }
 
     /// <summary>
@@ -127,6 +130,52 @@ namespace TitanGlenelg.Core.Simulation
                 StrengthRating = 68f,
                 PassThrowPower = 40f
             });
+
+            // Away Titans Roster
+            TitansRoster.Clear();
+            TitansRoster.Add(new RosterAthlete
+            {
+                AthleteId = "TITAN_01",
+                FullName = "DeAndre King",
+                JerseyNumber = 3,
+                PrimaryPosition = PlayerPosition.QB,
+                SecondaryPosition = PlayerPosition.SS,
+                PlaysBothWays = true,
+                Stamina = 100f,
+                MaxStamina = 100f,
+                SpeedRating = 90f,
+                StrengthRating = 78f,
+                PassThrowPower = 90f
+            });
+
+            TitansRoster.Add(new RosterAthlete
+            {
+                AthleteId = "TITAN_02",
+                FullName = "Xavier Wright",
+                JerseyNumber = 21,
+                PrimaryPosition = PlayerPosition.RB,
+                SecondaryPosition = PlayerPosition.WLB,
+                PlaysBothWays = true,
+                Stamina = 100f,
+                MaxStamina = 100f,
+                SpeedRating = 92f,
+                StrengthRating = 83f,
+                PassThrowPower = 45f
+            });
+
+            TitansRoster.Add(new RosterAthlete
+            {
+                AthleteId = "TITAN_BK_01",
+                FullName = "Jordan Hayes",
+                JerseyNumber = 33,
+                PrimaryPosition = PlayerPosition.RB,
+                PlaysBothWays = false,
+                Stamina = 100f,
+                MaxStamina = 100f,
+                SpeedRating = 85f,
+                StrengthRating = 77f,
+                PassThrowPower = 40f
+            });
         }
 
         /// <summary>
@@ -170,13 +219,13 @@ namespace TitanGlenelg.Core.Simulation
             float staminaRatio = athlete.Stamina / athlete.MaxStamina;
 
             // Sprint penalty: 1.0 down to 0.80 (-20%)
-            float speedPenalty = Mathf.Lerp(0.80f, 1.0f, staminaRatio);
+            athlete.CurrentSpeedMultiplier = Mathf.Lerp(0.80f, 1.0f, staminaRatio);
 
             // Pass velocity penalty: 1.0 down to 0.85 (-15%)
-            float throwPenalty = Mathf.Lerp(0.85f, 1.0f, staminaRatio);
+            athlete.CurrentThrowMultiplier = Mathf.Lerp(0.85f, 1.0f, staminaRatio);
 
             // Block shed penalty: 1.0 down to 0.65 (-35%)
-            float shedPenalty = Mathf.Lerp(0.65f, 1.0f, staminaRatio);
+            athlete.CurrentShedMultiplier = Mathf.Lerp(0.65f, 1.0f, staminaRatio);
 
             // Non-linear injury risk: escalates exponentially when stamina drops below 40%
             if (staminaRatio < 0.40f)
@@ -192,17 +241,20 @@ namespace TitanGlenelg.Core.Simulation
 
         public float GetSpeedMultiplier(RosterAthlete athlete)
         {
-            return Mathf.Lerp(0.80f, 1.0f, athlete.Stamina / athlete.MaxStamina);
+            UpdatePenaltiesAndInjuryRisk(athlete);
+            return athlete.CurrentSpeedMultiplier;
         }
 
         public float GetThrowVelocityMultiplier(RosterAthlete athlete)
         {
-            return Mathf.Lerp(0.85f, 1.0f, athlete.Stamina / athlete.MaxStamina);
+            UpdatePenaltiesAndInjuryRisk(athlete);
+            return athlete.CurrentThrowMultiplier;
         }
 
         public float GetBlockShedMultiplier(RosterAthlete athlete)
         {
-            return Mathf.Lerp(0.65f, 1.0f, athlete.Stamina / athlete.MaxStamina);
+            UpdatePenaltiesAndInjuryRisk(athlete);
+            return athlete.CurrentShedMultiplier;
         }
 
         /// <summary>
@@ -210,8 +262,8 @@ namespace TitanGlenelg.Core.Simulation
         /// </summary>
         public bool PerformTacticalSubstitution(string starterId, string backupId)
         {
-            var starter = GlenelgRoster.Find(a => a.AthleteId == starterId);
-            var backup = GlenelgRoster.Find(a => a.AthleteId == backupId);
+            var starter = GlenelgRoster.Find(a => a.AthleteId == starterId) ?? TitansRoster.Find(a => a.AthleteId == starterId);
+            var backup = GlenelgRoster.Find(a => a.AthleteId == backupId) ?? TitansRoster.Find(a => a.AthleteId == backupId);
 
             if (starter != null && backup != null)
             {

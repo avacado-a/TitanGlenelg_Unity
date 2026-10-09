@@ -16,6 +16,16 @@ namespace TitanGlenelg.Core.AI
     public partial struct DefensiveCoverageSystem : ISystem
     {
         [BurstCompile]
+        public void OnCreate(ref SystemState state)
+        {
+        }
+
+        [BurstCompile]
+        public void OnDestroy(ref SystemState state)
+        {
+        }
+
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             float dt = SystemAPI.Time.DeltaTime;
@@ -24,7 +34,7 @@ namespace TitanGlenelg.Core.AI
             {
                 DeltaTime = dt
             };
-            job.ScheduleParallel();
+            state.Dependency = job.ScheduleParallel(state.Dependency);
         }
     }
 
@@ -41,6 +51,12 @@ namespace TitanGlenelg.Core.AI
             ref LocalTransform transform,
             in PlayerIdentity identity)
         {
+            // Defensive linemen engage via PassRush and TrenchWarfareSystem
+            if (identity.Position >= PlayerPosition.DE_L && identity.Position <= PlayerPosition.DE_R && fsm.DefensePhase != DefensiveFSMPhase.PassRush)
+            {
+                fsm.DefensePhase = DefensiveFSMPhase.PassRush;
+            }
+
             fsm.StateTimeElapsed += DeltaTime;
 
             switch (fsm.DefensePhase)

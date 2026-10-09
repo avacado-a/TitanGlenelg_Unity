@@ -88,6 +88,10 @@ namespace TitanGlenelg.Core.Physics
                     break;
             }
 
+            // Adjust launch angle for vertical elevation differences between origin and target
+            float elevationTiltDeg = math.degrees(math.atan2(verticalDistance, horizontalDistance));
+            launchAngleDeg = math.clamp(launchAngleDeg + elevationTiltDeg, 5.0f, 65.0f);
+
             // Apply quarterback stamina degradation from Two-Way Ironman fatigue
             speed *= math.clamp(qbStaminaMultiplier, 0.85f, 1.0f);
 

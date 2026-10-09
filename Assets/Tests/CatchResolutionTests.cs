@@ -58,5 +58,28 @@ namespace TitanGlenelg.Tests
             Assert.AreEqual(OffensiveFSMPhase.Down, fsmPossession.OffensePhase, "Possession catch transitions to Down (down by contact/toe tap)");
             Assert.AreEqual(0f, locoPossession.CurrentVelocity.z, "Possession catch should arrest forward momentum (zero YAC)");
         }
+
+        [Test]
+        public void Test_AggressiveCatch_OutcomesAndHighPointSecurity()
+        {
+            var catchTargetAgg = new CatchTargetData
+            {
+                CatchMode = UserCatchMode.Aggressive,
+                CatchAttempted = true
+            };
+            var fsmAgg = new PlayerFSMState { OffensePhase = OffensiveFSMPhase.CatchWindow };
+            var locoAgg = new KinematicLocomotionData { CurrentVelocity = new float3(0f, 0f, 6.0f) };
+
+            CatchResolutionSystem.ApplyCatchOutcome(ref catchTargetAgg, ref fsmAgg, ref locoAgg);
+
+            Assert.IsTrue(catchTargetAgg.CatchSecured, "Aggressive catch must be secured");
+            Assert.AreEqual(OffensiveFSMPhase.RunAfterCatch, fsmAgg.OffensePhase, "Aggressive catch transitions to RunAfterCatch");
+            Assert.Less(locoAgg.CurrentVelocity.z, 6.0f, "Aggressive catch landing decelerates momentum");
+
+            // Evaluate contested knockout with medium hit (25% chance; 35% roll survives)
+            bool knockout = CatchResolutionSystem.EvaluateContestedKnockout(
+                UserCatchMode.Aggressive, receiverCatchRating: 90f, defenderImpactForce: 600f, randomSeed: 0.35f);
+            Assert.IsFalse(knockout, "High-rated receiver on aggressive catch survives moderate contest");
+        }
     }
 }

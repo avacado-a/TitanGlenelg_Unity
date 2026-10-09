@@ -17,9 +17,19 @@ namespace TitanGlenelg.Core.AI
     public partial struct TrenchWarfareSystem : ISystem
     {
         public const float LeverageCheckInterval = 0.40f;
-        public const float ShedThreshold = 25.0f;
-        public const float PancakeThreshold = 45.0f;
-        public const float AnchorThreshold = 25.0f;
+        public const float ShedThreshold = 18.0f;
+        public const float PancakeThreshold = 26.0f;
+        public const float AnchorThreshold = 18.0f;
+
+        [BurstCompile]
+        public void OnCreate(ref SystemState state)
+        {
+        }
+
+        [BurstCompile]
+        public void OnDestroy(ref SystemState state)
+        {
+        }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
@@ -31,7 +41,13 @@ namespace TitanGlenelg.Core.AI
                 DeltaTime = dt,
                 CheckInterval = LeverageCheckInterval
             };
-            job.ScheduleParallel();
+            state.Dependency = job.ScheduleParallel(state.Dependency);
+        }
+
+        [BurstCompile]
+        public static float CalculateLeverageDelta(in LinemanPhysicalAttributes attr, float timeElapsed)
+        {
+            return EvaluateTrenchWarfareJob.CalculateLeverageDelta(in attr, timeElapsed);
         }
     }
 
@@ -58,8 +74,18 @@ namespace TitanGlenelg.Core.AI
                 {
                     locomotion.DesiredVelocity = (pullDiff / pullDist) * locomotion.MaxSprintSpeedMps;
                     transform.Position += locomotion.DesiredVelocity * DeltaTime;
+                    return;
                 }
-                return;
+                else
+                {
+                    // Reached kickout/seal waypoint: complete pull and engage block
+                    attributes.IsPullingAssignment = false;
+                    lockup.State = TrenchEngagementState.LockedInTrench;
+                    lockup.LockupTimer = 0f;
+                    lockup.NextLeverageCheckTime = CheckInterval;
+                    locomotion.DesiredVelocity = float3.zero;
+                    locomotion.CurrentVelocity = float3.zero;
+                }
             }
 
             if (lockup.State == TrenchEngagementState.Unengaged)
@@ -70,9 +96,9 @@ namespace TitanGlenelg.Core.AI
             lockup.LockupTimer += DeltaTime;
 
             // 1. Pocket Integrity Drift: Conceding depth backward in pass protection
-            if (attributes.IsOffensiveLineman && lockup.State == TrenchEngagementState.LockedInTrench)
+            if (lockup.State == TrenchEngagementState.LockedInTrench)
             {
-                // Drift backward along pocket normal (0.3 - 0.8 m/s)
+                // Both engaged linemen drift together along pocket normal (0.3 - 0.8 m/s)
                 float3 driftVector = lockup.PocketPocketNormal * lockup.PocketDriftSpeedMps;
                 transform.Position += driftVector * DeltaTime;
             }

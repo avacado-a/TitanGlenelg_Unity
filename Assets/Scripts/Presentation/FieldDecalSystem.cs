@@ -47,6 +47,12 @@ namespace TitanGlenelg.Core.Presentation
             {
                 YellowLineToGain.position = new Vector3(0f, 0.05f, gainWorldZ);
             }
+
+            if (RedZoneLine != null)
+            {
+                // Red zone boundary at 20-yard line (yard line 80 toward opponent end zone)
+                RedZoneLine.position = new Vector3(0f, 0.05f, YardToWorldZ(80.0f));
+            }
         }
 
         public float YardToWorldZ(float yardLine)

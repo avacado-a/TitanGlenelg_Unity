@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using Unity.Mathematics;
 using TitanGlenelg.Core.AI;
 using TitanGlenelg.Core.Physics;
 using TitanGlenelg.Core.Playbook;
@@ -136,7 +137,7 @@ namespace TitanGlenelg.Core.Simulation
             {
                 foreach (var athlete in FatigueSystem.GlenelgRoster)
                 {
-                    FatigueSystem.ApplyLivePlayFatigue(athlete, math.max(2.5f, PlayDurationSeconds), true);
+                    FatigueSystem.ApplyLivePlayFatigue(athlete, Mathf.Max(2.5f, PlayDurationSeconds), true);
                     FatigueSystem.RecoverBetweenPlays(athlete, 12f);
                 }
             }

@@ -105,5 +105,16 @@ namespace TitanGlenelg.Tests
             Assert.IsTrue(starter.IsSubstitutedOut, "Starter must be flagged as substituted out");
             Assert.IsFalse(backup.IsSubstitutedOut, "Backup must be active on field");
         }
+
+        [Test]
+        public void Test_TitansRoster_InitializedAndSupportsSubstitutions()
+        {
+            Assert.Greater(_fatigueSystem.TitansRoster.Count, 0, "Titans roster must be populated with athletes");
+            bool success = _fatigueSystem.PerformTacticalSubstitution("TITAN_02", "TITAN_BK_01");
+            Assert.IsTrue(success, "Tactical substitution for Titans roster must succeed");
+
+            var starter = _fatigueSystem.TitansRoster.Find(a => a.AthleteId == "TITAN_02");
+            Assert.IsTrue(starter.IsSubstitutedOut, "Titans starter must be flagged as substituted out");
+        }
     }
 }
